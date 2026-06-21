@@ -1,0 +1,686 @@
+const SCRIPT_URL =<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rota da Viagem · Planejamento Financeiro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.mconst SCRIPT_URL =in.js"></script>
+<style>
+  :root{
+    --bg:#10192C; --bg-soft:#16223C; --tag:#F4EEDD; --tag-line:#E2D9BE;
+    --gold:#E3A857; --teal:#5AA39A; --coral:#E2654B; --amber:#E0B23F;
+    --ink:#1B2233; --ink-soft:#5B6478; --line: rgba(244,238,221,0.14);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(ellipse at top, #1A2742 0%, #10192C 55%, #0B1220 100%);
+    color:var(--tag); font-family:'Inter',sans-serif; min-height:100vh; padding-bottom:60px;
+  }
+  h1,h2,h3,.display{font-family:'Fraunces',serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px;}
+
+  header{text-align:center;margin-bottom:8px;}
+  .eyebrow{letter-spacing:.18em;text-transform:uppercase;font-size:11px;color:var(--gold);font-weight:600;}
+  header h1{font-size:clamp(32px,5vw,52px);margin:6px 0 4px;font-weight:700;}
+  header h1 span{color:var(--gold);}
+  .subtitle{color:#A9B3C9;font-size:14px;}
+
+  /* Alerts */
+  .alerts{margin-top:24px;display:flex;flex-direction:column;gap:8px;}
+  .alert-item{
+    display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;font-size:14px;
+  }
+  .alert-item.late{background:rgba(226,101,75,0.14);border:1px solid rgba(226,101,75,0.4);color:#F3B8A9;}
+  .alert-item.soon{background:rgba(224,178,63,0.14);border:1px solid rgba(224,178,63,0.4);color:#F1D89A;}
+  .alert-item b{color:var(--tag);}
+  .alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .alert-item.late .alert-dot{background:var(--coral);}
+  .alert-item.soon .alert-dot{background:var(--amber);}
+
+  /* Route */
+  .route-card{
+    margin-top:28px;background:linear-gradient(180deg, rgba(244,238,221,0.04), rgba(244,238,221,0.01));
+    border:1px solid var(--line);border-radius:20px;padding:34px 28px 26px;position:relative;overflow:hidden;
+  }
+  .route-card::before{
+    content:"";position:absolute;inset:0;
+    background-image:radial-gradient(circle at 20% 20%, rgba(227,168,87,0.08), transparent 40%);
+    pointer-events:none;
+  }
+  .route-track{position:relative;height:70px;margin:18px 10px 6px;}
+  .route-line{
+    position:absolute;top:34px;left:0;right:0;height:2px;
+    background-image:linear-gradient(to right, var(--tag-line) 0 8px, transparent 8px 16px);
+    background-size:16px 2px;opacity:.45;
+  }
+  .route-fill{position:absolute;top:34px;left:0;height:2px;background:var(--gold);width:0%;transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+  .route-plane{position:absolute;top:18px;left:0%;transform:translateX(-50%);font-size:26px;transition:left 1.2s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 4px 6px rgba(0,0,0,.4));}
+  .route-milestones{position:absolute;top:28px;left:0;right:0;display:flex;justify-content:space-between;}
+  .milestone{width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--tag-line);position:relative;}
+  .milestone.reached{background:var(--gold);border-color:var(--gold);}
+  .milestone span{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:11px;color:#8C96AC;white-space:nowrap;}
+  .route-stats{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;margin-top:28px;padding-top:22px;border-top:1px solid var(--line);}
+  .stat{flex:1;min-width:140px;}
+  .stat .num{font-family:'Fraunces',serif;font-size:26px;font-weight:600;}
+  .stat .lbl{font-size:12px;color:#8C96AC;margin-top:2px;}
+  .stat.alert .num{color:var(--coral);}
+  .stat.good .num{color:var(--teal);}
+
+  /* Important data grid */
+  .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:18px;}
+  .info-card{background:var(--bg-soft);border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
+  .info-card .num{font-family:'Fraunces',serif;font-size:21px;font-weight:600;}
+  .info-card .lbl{font-size:12px;color:#8C96AC;margin-top:3px;}
+
+  .section-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:48px 0 18px;flex-wrap:wrap;}
+  .section-title h2{font-size:22px;font-weight:600;margin:0;}
+  .section-title .count{font-size:12px;color:#8C96AC;}
+
+  .filter-bar{display:flex;align-items:center;gap:10px;}
+  .filter-bar label{font-size:12px;color:#8C96AC;}
+  .filter-bar select{
+    background:#0F182B;color:var(--tag);border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px;font-size:13px;font-family:'Inter';
+  }
+
+  .tags{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;}
+  .tag{
+    background:var(--tag);color:var(--ink);border-radius:12px;padding:18px 18px 16px;position:relative;
+    box-shadow:0 10px 24px rgba(0,0,0,.25);cursor:pointer;transition:transform .15s;
+  }
+  .tag:hover{transform:translateY(-2px);}
+  .tag.selected{box-shadow:0 0 0 3px var(--gold), 0 10px 24px rgba(0,0,0,.25);}
+  .tag::before{content:"";position:absolute;top:14px;right:14px;width:10px;height:10px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 3px var(--tag-line);}
+  .tag h3{margin:0 0 2px;font-size:18px;font-weight:600;}
+  .tag .status{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:14px;display:inline-block;}
+  .tag .status.ok{color:#3D7A6F;}
+  .tag .status.late{color:#B5402A;}
+  .tag .status.soon{color:#9C7A1F;}
+  .tag .status.pendente{color:#7C8294;}
+  .tag .bar-bg{height:8px;border-radius:6px;background:rgba(27,34,51,0.12);overflow:hidden;margin-bottom:10px;}
+  .tag .bar-fill{height:100%;border-radius:6px;background:var(--teal);}
+  .tag .bar-fill.late{background:var(--coral);}
+  .tag .bar-fill.soon{background:var(--amber);}
+  .tag .row{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);}
+  .tag .row b{color:var(--ink);font-weight:600;}
+
+  .chart-card{background:var(--bg-soft);border:1px solid var(--line);border-radius:16px;padding:22px;}
+
+  .admin-toggle{text-align:center;margin-top:54px;}
+  .admin-toggle button{background:none;border:1px solid var(--line);color:#8C96AC;font-size:12px;padding:8px 16px;border-radius:20px;cursor:pointer;font-family:'Inter';}
+  .admin-toggle button:hover{color:var(--gold);border-color:var(--gold);}
+  .admin-panel{display:none;margin-top:18px;background:var(--bg-soft);border:1px solid var(--line);border-radius:16px;padding:24px;}
+  .admin-panel.open{display:block;}
+  .admin-panel h3{margin-top:0;font-size:16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:#8C96AC;margin-bottom:5px;}
+  .field input, .field select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#0F182B;color:var(--tag);font-size:14px;font-family:'Inter';}
+  .field input:focus, .field select:focus{outline:1px solid var(--gold);}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .three-col{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;align-items:end;}
+  .btn-primary{background:var(--gold);color:#1B1304;border:none;padding:11px 20px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;font-family:'Inter';}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .feedback{font-size:13px;margin-top:10px;}
+  .feedback.ok{color:var(--teal);}
+  .feedback.err{color:var(--coral);}
+  hr.div{border:none;border-top:1px solid var(--line);margin:22px 0;}
+  .loading, .error-state{text-align:center;padding:60px 20px;color:#8C96AC;}
+  .error-state{color:var(--coral);}
+  .config-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .config-row span{flex:1;font-size:14px;}
+  .config-row input{width:90px;}
+  footer{text-align:center;color:#5B6478;font-size:12px;margin-top:50px;}
+
+  @media (max-width:600px){
+    .route-stats{flex-direction:column;}
+    .two-col, .three-col{grid-template-columns:1fr;}
+    .section-title{flex-direction:column;align-items:flex-start;}
+  }
+
+  /* Gate / tela de entrada */
+  .gate-overlay{
+    position:fixed;inset:0;z-index:50;
+    background:radial-gradient(ellipse at top, #1A2742 0%, #10192C 55%, #0B1220 100%);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .gate-card{
+    max-width:460px;width:100%;background:var(--bg-soft);border:1px solid var(--line);
+    border-radius:20px;padding:36px 30px;text-align:center;
+  }
+  .gate-card .eyebrow{display:block;margin-bottom:8px;}
+  .gate-card h2{font-size:26px;margin:0 0 8px;font-weight:600;}
+  .gate-card p{color:#A9B3C9;font-size:14px;margin:0 0 22px;}
+  .gate-list{display:flex;flex-direction:column;gap:10px;margin-bottom:24px;}
+  .gate-list button{
+    background:var(--tag);color:var(--ink);border:none;border-radius:10px;padding:13px;
+    font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter';transition:transform .15s;
+  }
+  .gate-list button:hover{transform:translateY(-1px);filter:brightness(.97);}
+  .gate-admin{display:flex;flex-direction:column;gap:10px;padding-top:18px;border-top:1px solid var(--line);}
+  .gate-admin input{
+    padding:12px;border-radius:8px;border:1px solid var(--line);background:#0F182B;color:var(--tag);
+    font-size:14px;font-family:'Inter';text-align:center;
+  }
+  .gate-admin button{
+    background:none;border:1px solid var(--gold);color:var(--gold);padding:11px;border-radius:8px;
+    font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter';
+  }
+  .gate-admin button:hover{background:var(--gold);color:#1B1304;}
+  .gate-erro{color:var(--coral);font-size:12px;min-height:16px;}
+  .trocar-usuario{
+    text-align:center;margin-top:18px;
+  }
+  .trocar-usuario button{
+    background:none;border:none;color:#5B6478;font-size:12px;cursor:pointer;font-family:'Inter';
+    text-decoration:underline;
+  }
+  .trocar-usuario button:hover{color:var(--gold);}
+</style>
+</head>
+<body>
+
+<div class="gate-overlay" id="telaEntrada">
+  <div class="gate-card">
+    <span class="eyebrow">Planejamento financeiro</span>
+    <h2>Quem está acompanhando?</h2>
+    <p>Escolha seu casal para ver o progresso geral e o seu detalhado, ou entre como administrador.</p>
+    <div class="gate-list" id="gateCasaisLista">
+      <div style="color:#8C96AC;font-size:13px;">Carregando casais...</div>
+    </div>
+    <div class="gate-admin">
+      <input type="password" id="gateSenhaAdmin" placeholder="Senha do administrador">
+      <button id="btnGateAdmin" type="button">Entrar como administrador</button>
+      <div class="gate-erro" id="gateErro"></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="wrapPrincipal" style="display:none;"></div>
+
+<script id="templatePrincipal" type="text/template">
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Planejamento financeiro</div>
+    <h1 id="tituloDestino">Rumo a <span>?</span></h1>
+    <div class="subtitle" id="subtituloData">carregando dados...</div>
+  </header>
+
+  <div id="alertasArea" class="alerts"></div>
+
+  <div id="conteudo">
+    <div class="loading">Buscando dados na planilha…</div>
+  </div>
+
+  <div class="admin-toggle" id="botaoAdminWrap" style="display:none;">
+    <button id="btnAdmin" type="button">Registrar valor guardado / Editar metas</button>
+  </div>
+
+  <div class="admin-panel" id="painelAdmin">
+    <div class="field">
+      <label>Senha de administrador</label>
+      <input type="password" id="senhaAdmin" placeholder="Digite a senha">
+    </div>
+    <hr class="div">
+
+    <h3>Registrar valor guardado este mês</h3>
+    <div class="two-col">
+      <div class="field">
+        <label>Casal</label>
+        <select id="selCasal"></select>
+      </div>
+      <div class="field">
+        <label>Valor depositado (R$)</label>
+        <input type="number" id="inputValor" placeholder="300.00" step="0.01">
+      </div>
+    </div>
+    <div id="previewDivisao" class="info-card" style="margin-bottom:14px;display:none;">
+      <div class="lbl" style="margin-bottom:6px;">Como esse depósito vai ser dividido</div>
+      <div class="row" style="color:#A9B3C9;"><span>Vai para a meta da viagem</span><b id="previewMeta" style="color:var(--teal);">R$ 0,00</b></div>
+      <div class="row" style="color:#A9B3C9;"><span>Sobra como extra / guardado pessoal</span><b id="previewExtra" style="color:var(--gold);">R$ 0,00</b></div>
+    </div>
+    <button class="btn-primary" id="btnRegistrar">Salvar registro</button>
+    <div class="feedback" id="feedbackRegistro"></div>
+
+    <hr class="div">
+    <h3>Editar metas e vencimento da viagem</h3>
+    <div class="two-col">
+      <div class="field">
+        <label>Destino</label>
+        <input type="text" id="cfgDestino" placeholder="Ex: Cancún">
+      </div>
+      <div class="field">
+        <label>Meta total (R$)</label>
+        <input type="number" id="cfgMetaTotal" placeholder="20000">
+      </div>
+      <div class="field">
+        <label>Data de início da poupança</label>
+        <input type="date" id="cfgDataInicio">
+      </div>
+      <div class="field">
+        <label>Data limite da viagem</label>
+        <input type="date" id="cfgDataLimite">
+      </div>
+    </div>
+    <div id="cfgCasaisLista"></div>
+    <button class="btn-primary" id="btnSalvarConfig">Salvar metas</button>
+    <div class="feedback" id="feedbackConfig"></div>
+  </div>
+
+  <div class="trocar-usuario"><button id="btnTrocarUsuario" type="button">Trocar usuário / sair</button></div>
+
+  <footer>Dashboard gerado para acompanhamento da poupança coletiva · dados sincronizados com Google Planilhas</footer>
+</div>
+</script>
+
+<script>
+// ======= CONFIGURE AQUI =======
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZLrCMWqnxl9amTzzGUeWiD9LNi2W1vOQhIl7k0RVfp7-j_64BHV_CT8BZqhlKSuJRLg/exec";
+// ================================
+
+let DADOS = null;
+let CASAL_SELECIONADO = null; // null = todos (apenas admin)
+let EH_ADMIN = false;
+let chartInstance = null;
+
+function formatBRL(v){ return (v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'}); }
+
+function mesesEntre(d1, d2){
+  if (!d1 || !d2) return 0;
+  const a = new Date(d1), b = new Date(d2);
+  return Math.max((b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()), 0);
+}
+function mesmoMes(dataStr, ref){
+  const d = new Date(dataStr);
+  return d.getFullYear()===ref.getFullYear() && d.getMonth()===ref.getMonth();
+}
+
+async function carregar(){
+  try{
+    const res = await fetch(SCRIPT_URL);
+    const data = await res.json();
+    if (data.erro) throw new Error(data.erro);
+    DADOS = data;
+    montarGate(data);
+  }catch(err){
+    document.getElementById('gateCasaisLista').innerHTML =
+      '<div style="color:var(--coral);font-size:13px;">Não foi possível carregar os dados. Verifique a URL do Apps Script.</div>';
+    console.error(err);
+  }
+}
+
+// status de cada casal em relação ao vencimento do mês atual
+function statusCasal(casal, registros, hoje){
+  const registrosMes = registros.filter(r=>r.casal===casal.nome && mesmoMes(r.data, hoje));
+  const guardadoMes = registrosMes.reduce((s,r)=>s+r.valorMeta,0);
+  const diaVenc = casal.diaVencimento || 5;
+  const vencimento = new Date(hoje.getFullYear(), hoje.getMonth(), diaVenc);
+  const diasParaVencer = Math.ceil((vencimento - hoje)/86400000);
+
+  let status;
+  if (guardadoMes >= casal.metaMensal) status = 'ok';
+  else if (diasParaVencer < 0) status = 'atrasado';
+  else if (diasParaVencer <= 3) status = 'chegando';
+  else status = 'pendente';
+
+  return { status, diasParaVencer, guardadoMes, vencimento };
+}
+
+function render(data){
+  const hoje = new Date();
+  const totalGuardado = data.registros.reduce((s,r)=>s+r.valorMeta,0);
+  const totalExtra = data.registros.reduce((s,r)=>s+r.valorExtra,0);
+  const metaTotal = data.metaTotal || 0;
+  const pct = metaTotal ? Math.min(100, (totalGuardado/metaTotal)*100) : 0;
+
+  document.getElementById('tituloDestino').innerHTML = 'Rumo a <span>'+(data.destino||'sua viagem')+'</span>';
+
+  let subt = '';
+  if (data.dataLimite){
+    const diasRestantes = Math.ceil((new Date(data.dataLimite) - hoje)/86400000);
+    subt = diasRestantes >= 0 ? diasRestantes + ' dias até a viagem' : 'data da viagem já passou';
+  }
+  document.getElementById('subtituloData').textContent = subt;
+
+  const mesesRestantes = mesesEntre(hoje, data.dataLimite);
+  const faltam = Math.max(metaTotal - totalGuardado, 0);
+  const projecaoMensal = data.casais.reduce((s,c)=>s+c.metaMensal,0);
+  const projecaoTotal = totalGuardado + projecaoMensal*mesesRestantes;
+
+  // ===== ALERTAS =====
+  const statusPorCasal = data.casais.map(c=>({ casal:c, st: statusCasal(c, data.registros, hoje) }));
+  const statusVisiveis = EH_ADMIN ? statusPorCasal : statusPorCasal.filter(x=>x.casal.nome===CASAL_SELECIONADO);
+  let alertasHtml = '';
+  statusVisiveis.filter(x=>x.st.status==='atrasado').forEach(x=>{
+    alertasHtml += '<div class="alert-item late"><span class="alert-dot"></span><span><b>'+x.casal.nome+'</b> está atrasado — venceu há '+Math.abs(x.st.diasParaVencer)+' dia(s) e ainda não guardou a meta deste mês ('+formatBRL(x.st.guardadoMes)+' de '+formatBRL(x.casal.metaMensal)+').</span></div>';
+  });
+  statusVisiveis.filter(x=>x.st.status==='chegando').forEach(x=>{
+    alertasHtml += '<div class="alert-item soon"><span class="alert-dot"></span><span><b>'+x.casal.nome+'</b>: faltam '+x.st.diasParaVencer+' dia(s) para o vencimento e ainda falta guardar '+formatBRL(Math.max(x.casal.metaMensal-x.st.guardadoMes,0))+'.</span></div>';
+  });
+  document.getElementById('alertasArea').innerHTML = alertasHtml;
+
+  // ===== DADOS IMPORTANTES =====
+  const ritmoNecessario = mesesRestantes>0 ? faltam/mesesRestantes : faltam;
+  const mesesComRegistro = new Set(data.registros.map(r=>{ const d=new Date(r.data); return d.getFullYear()+'-'+d.getMonth(); })).size || 1;
+  const ritmoAtual = totalGuardado / mesesComRegistro;
+  let maisAdiantado = null, maisAtrasado = null;
+  statusPorCasal.forEach(x=>{
+    const guardadoCasal = data.registros.filter(r=>r.casal===x.casal.nome).reduce((s,r)=>s+r.valorMeta,0);
+    const mesesDesdeInicio = Math.max(mesesEntre(data.dataInicio||hoje, hoje),1);
+    const folga = guardadoCasal - (x.casal.metaMensal*mesesDesdeInicio);
+    if (!maisAdiantado || folga>maisAdiantado.folga) maisAdiantado = {nome:x.casal.nome, folga};
+    if (!maisAtrasado || folga<maisAtrasado.folga) maisAtrasado = {nome:x.casal.nome, folga};
+  });
+  let proximoVencimento = null;
+  statusPorCasal.forEach(x=>{
+    if (x.st.status!=='ok' && (!proximoVencimento || x.st.diasParaVencer<proximoVencimento.dias)){
+      proximoVencimento = {nome:x.casal.nome, dias:x.st.diasParaVencer};
+    }
+  });
+
+  let html = '';
+
+  // ROUTE CARD
+  const milestones = [0,25,50,75,100];
+  html += '<div class="route-card"><div class="route-track">';
+  html += '<div class="route-line"></div>';
+  html += '<div class="route-fill" style="width:'+pct+'%"></div>';
+  html += '<div class="route-plane" style="left:'+pct+'%">✈️</div>';
+  html += '<div class="route-milestones">';
+  milestones.forEach(m=>{ html += '<div class="milestone '+(pct>=m?'reached':'')+'"><span>'+m+'%</span></div>'; });
+  html += '</div></div>';
+
+  html += '<div class="route-stats">';
+  html += '<div class="stat"><div class="num">'+formatBRL(totalGuardado)+'</div><div class="lbl">guardado até agora</div></div>';
+  html += '<div class="stat"><div class="num">'+formatBRL(metaTotal)+'</div><div class="lbl">meta da viagem</div></div>';
+  html += '<div class="stat '+(faltam>0?'alert':'good')+'"><div class="num">'+formatBRL(faltam)+'</div><div class="lbl">ainda falta guardar</div></div>';
+  html += '<div class="stat '+(projecaoTotal>=metaTotal?'good':'alert')+'"><div class="num">'+formatBRL(projecaoTotal)+'</div><div class="lbl">projeção até a data limite</div></div>';
+  html += '</div>';
+
+  html += '<div class="info-grid">';
+  html += '<div class="info-card"><div class="num">'+formatBRL(ritmoNecessario)+'</div><div class="lbl">precisa guardar/mês (todos juntos)</div></div>';
+  html += '<div class="info-card"><div class="num">'+formatBRL(ritmoAtual)+'</div><div class="lbl">ritmo médio atual/mês</div></div>';
+  html += '<div class="info-card"><div class="num">'+formatBRL(totalExtra)+'</div><div class="lbl">total guardado como extra/pessoal</div></div>';
+  if (EH_ADMIN){
+    if (maisAdiantado) html += '<div class="info-card"><div class="num">'+maisAdiantado.nome+'</div><div class="lbl">casal mais adiantado</div></div>';
+    if (maisAtrasado) html += '<div class="info-card"><div class="num">'+maisAtrasado.nome+'</div><div class="lbl">casal mais atrasado</div></div>';
+    html += '<div class="info-card"><div class="num">'+(proximoVencimento ? proximoVencimento.nome+' ('+proximoVencimento.dias+'d)' : 'tudo em dia')+'</div><div class="lbl">próximo vencimento pendente</div></div>';
+  }
+  html += '</div></div>';
+
+  // FILTRO + CASAIS
+  const tituloSecaoCasais = EH_ADMIN ? 'Cada casal' : 'Seu casal';
+  html += '<div class="section-title"><div><h2>'+tituloSecaoCasais+'</h2><span class="count">'+(EH_ADMIN ? data.casais.length+' casais · clique num cartão para ver o gráfico individual' : 'detalhamento pessoal')+'</span></div>';
+  if (EH_ADMIN){
+    html += '<div class="filter-bar"><label>Filtrar</label><select id="selFiltro"><option value="">Todos os casais</option>';
+    data.casais.forEach(c=>{ html += '<option value="'+c.nome+'" '+(CASAL_SELECIONADO===c.nome?'selected':'')+'>'+c.nome+'</option>'; });
+    html += '</select></div>';
+  }
+  html += '</div>';
+
+  const casaisVisiveis = EH_ADMIN
+    ? data.casais.filter(c=>!CASAL_SELECIONADO || c.nome===CASAL_SELECIONADO)
+    : data.casais.filter(c=>c.nome===CASAL_SELECIONADO);
+
+  html += '<div class="tags">';
+  casaisVisiveis.forEach(c=>{
+    const st = statusPorCasal.find(x=>x.casal.nome===c.nome).st;
+    const guardadoCasal = data.registros.filter(r=>r.casal===c.nome).reduce((s,r)=>s+r.valorMeta,0);
+    const extraCasal = data.registros.filter(r=>r.casal===c.nome).reduce((s,r)=>s+r.valorExtra,0);
+    const mesesDesdeInicio = Math.max(mesesEntre(data.dataInicio || hoje, hoje), 1);
+    const pctCasal = c.metaMensal*mesesDesdeInicio>0 ? Math.min(100,(guardadoCasal/(c.metaMensal*mesesDesdeInicio))*100) : 0;
+    const labelStatus = {ok:'Em dia', atrasado:'Atrasado', chegando:'Vence em breve', pendente:'Aguardando'}[st.status];
+    html += '<div class="tag '+(CASAL_SELECIONADO===c.nome?'selected':'')+'" data-casal="'+c.nome+'">';
+    html += '<h3>'+c.nome+'</h3>';
+    html += '<span class="status '+st.status+'">'+labelStatus+'</span>';
+    html += '<div class="bar-bg"><div class="bar-fill '+(st.status==='ok'?'':st.status)+'" style="width:'+pctCasal+'%"></div></div>';
+    html += '<div class="row"><span>Guardado total (meta)</span><b>'+formatBRL(guardadoCasal)+'</b></div>';
+    html += '<div class="row"><span>Meta mensal</span><b>'+formatBRL(c.metaMensal)+'</b></div>';
+    html += '<div class="row"><span>Extra / pessoal</span><b>'+formatBRL(extraCasal)+'</b></div>';
+    html += '<div class="row"><span>Vencimento</span><b>dia '+(c.diaVencimento||5)+'</b></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // CHART
+  const tituloGrafico = CASAL_SELECIONADO ? 'Evolução de '+CASAL_SELECIONADO : 'Evolução de todos os casais';
+  html += '<div class="section-title"><h2>'+tituloGrafico+'</h2></div>';
+  html += '<div class="chart-card"><canvas id="chartEvolucao" height="110"></canvas></div>';
+
+  document.getElementById('conteudo').innerHTML = html;
+  document.getElementById('botaoAdminWrap').style.display = EH_ADMIN ? 'block' : 'none';
+  if (!EH_ADMIN) document.getElementById('painelAdmin').classList.remove('open');
+
+  desenharGrafico(data, metaTotal, hoje);
+  if (EH_ADMIN) preencherAdmin(data);
+
+  if (EH_ADMIN){
+    document.getElementById('selFiltro').addEventListener('change', (e)=>{
+      CASAL_SELECIONADO = e.target.value || null;
+      render(DADOS);
+    });
+    document.querySelectorAll('.tag').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const nome = el.getAttribute('data-casal');
+        CASAL_SELECIONADO = CASAL_SELECIONADO===nome ? null : nome;
+        render(DADOS);
+      });
+    });
+  }
+}
+
+function desenharGrafico(data, metaTotal, hoje){
+  const registrosFiltrados = CASAL_SELECIONADO ? data.registros.filter(r=>r.casal===CASAL_SELECIONADO) : data.registros;
+  const porMes = {};
+  registrosFiltrados.forEach(r=>{
+    const d = new Date(r.data);
+    const chave = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    porMes[chave] = (porMes[chave]||0) + r.valorMeta;
+  });
+  const chaves = Object.keys(porMes).sort();
+  let acumulado = 0;
+  const acumulados = chaves.map(k=>{ acumulado += porMes[k]; return acumulado; });
+  const nomesMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const labels = chaves.map(k=>{ const [ano,mes]=k.split('-'); return nomesMeses[parseInt(mes)-1]+'/'+ano.slice(2); });
+
+  let metaLinha, labelMeta;
+  if (CASAL_SELECIONADO){
+    const casal = data.casais.find(c=>c.nome===CASAL_SELECIONADO);
+    metaLinha = labels.map((_,i)=> casal.metaMensal*(i+1));
+    labelMeta = 'Meta acumulada do casal';
+  } else {
+    metaLinha = labels.map(()=>metaTotal);
+    labelMeta = 'Meta total';
+  }
+
+  const ctx = document.getElementById('chartEvolucao');
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: labels,
+      datasets:[
+        { label:'Total guardado (acumulado)', data: acumulados, borderColor:'#E3A857', backgroundColor:'rgba(227,168,87,0.15)', fill:true, tension:.3, pointRadius:4 },
+        { label:labelMeta, data: metaLinha, borderColor:'#5AA39A', borderDash:[6,6], pointRadius:0 }
+      ]
+    },
+    options:{
+      plugins:{ legend:{ labels:{ color:'#F4EEDD' } } },
+      scales:{
+        x:{ ticks:{ color:'#8C96AC' }, grid:{ color:'rgba(244,238,221,0.06)' } },
+        y:{ ticks:{ color:'#8C96AC' }, grid:{ color:'rgba(244,238,221,0.06)' } }
+      }
+    }
+  });
+}
+
+function preencherAdmin(data){
+  const sel = document.getElementById('selCasal');
+  sel.innerHTML = data.casais.map(c=>'<option value="'+c.nome+'">'+c.nome+'</option>').join('');
+  sel.addEventListener('change', calcularDivisaoPreview);
+  document.getElementById('inputValor').addEventListener('input', calcularDivisaoPreview);
+
+  document.getElementById('cfgDestino').value = data.destino||'';
+  document.getElementById('cfgMetaTotal').value = data.metaTotal||'';
+  document.getElementById('cfgDataInicio').value = data.dataInicio ? data.dataInicio.substring(0,10) : '';
+  document.getElementById('cfgDataLimite').value = data.dataLimite ? data.dataLimite.substring(0,10) : '';
+
+  const lista = document.getElementById('cfgCasaisLista');
+  lista.innerHTML = '<label style="font-size:12px;color:#8C96AC;display:block;margin:10px 0 6px;">Meta mensal e dia de vencimento por casal</label>' +
+    data.casais.map((c,i)=>
+      '<div class="config-row"><span>'+c.nome+'</span>'+
+      '<input type="number" data-idx="'+i+'" class="cfgCasalMeta" value="'+c.metaMensal+'" title="Meta mensal">'+
+      '<input type="number" data-idx="'+i+'" class="cfgCasalDia" value="'+(c.diaVencimento||5)+'" min="1" max="28" title="Dia de vencimento">'+
+      '</div>'
+    ).join('');
+}
+
+function calcularDivisaoPreview(){
+  const casal = DADOS.casais.find(c=>c.nome===document.getElementById('selCasal').value);
+  const valor = Number(document.getElementById('inputValor').value);
+  const box = document.getElementById('previewDivisao');
+  if (!casal || !valor){ box.style.display='none'; return; }
+
+  const hoje = new Date();
+  const jaNaMeta = DADOS.registros
+    .filter(r=>r.casal===casal.nome && mesmoMes(r.data, hoje))
+    .reduce((s,r)=>s+r.valorMeta,0);
+  const restante = Math.max(casal.metaMensal - jaNaMeta, 0);
+  const valorMeta = Math.min(valor, restante);
+  const valorExtra = valor - valorMeta;
+
+  document.getElementById('previewMeta').textContent = formatBRL(valorMeta);
+  document.getElementById('previewExtra').textContent = formatBRL(valorExtra);
+  box.style.display = 'block';
+}
+
+function ligarEventosEstaticos(){
+  document.getElementById('btnAdmin').addEventListener('click', ()=>{
+    document.getElementById('painelAdmin').classList.toggle('open');
+  });
+
+  document.getElementById('btnRegistrar').addEventListener('click', async ()=>{
+    const senha = document.getElementById('senhaAdmin').value;
+    const casal = document.getElementById('selCasal').value;
+    const valor = document.getElementById('inputValor').value;
+    const fb = document.getElementById('feedbackRegistro');
+    if (!senha || !valor){ fb.textContent='Preencha a senha e o valor.'; fb.className='feedback err'; return; }
+
+    fb.textContent = 'Salvando...'; fb.className='feedback';
+    try{
+      const body = new URLSearchParams({ senha, action:'registro', casal, valor });
+      const res = await fetch(SCRIPT_URL, { method:'POST', body });
+      const json = await res.json();
+      if (json.erro) throw new Error(json.erro);
+      fb.textContent = 'Registrado! '+formatBRL(json.valorMeta)+' foi pra meta e '+formatBRL(json.valorExtra)+' ficou como extra/pessoal.';
+      fb.className='feedback ok';
+      document.getElementById('inputValor').value='';
+      document.getElementById('previewDivisao').style.display='none';
+      recarregarDados();
+    }catch(err){
+      fb.textContent = 'Erro: ' + err.message; fb.className='feedback err';
+    }
+  });
+
+  document.getElementById('btnSalvarConfig').addEventListener('click', async ()=>{
+    const senha = document.getElementById('senhaAdmin').value;
+    const fb = document.getElementById('feedbackConfig');
+    if (!senha){ fb.textContent='Digite a senha.'; fb.className='feedback err'; return; }
+
+    const casais = DADOS.casais.map((c,i)=>{
+      const inputMeta = document.querySelector('.cfgCasalMeta[data-idx="'+i+'"]');
+      const inputDia = document.querySelector('.cfgCasalDia[data-idx="'+i+'"]');
+      return { nome:c.nome, metaMensal: Number(inputMeta.value), diaVencimento: Number(inputDia.value) };
+    });
+
+    fb.textContent = 'Salvando...'; fb.className='feedback';
+    try{
+      const body = new URLSearchParams({
+        senha, action:'config',
+        destino: document.getElementById('cfgDestino').value,
+        metaTotal: document.getElementById('cfgMetaTotal').value,
+        dataInicio: document.getElementById('cfgDataInicio').value,
+        dataLimite: document.getElementById('cfgDataLimite').value,
+        casais: JSON.stringify(casais)
+      });
+      const res = await fetch(SCRIPT_URL, { method:'POST', body });
+      const json = await res.json();
+      if (json.erro) throw new Error(json.erro);
+      fb.textContent = 'Metas atualizadas!'; fb.className='feedback ok';
+      recarregarDados();
+    }catch(err){
+      fb.textContent = 'Erro: ' + err.message; fb.className='feedback err';
+    }
+  });
+
+  document.getElementById('btnTrocarUsuario').addEventListener('click', sairParaGate);
+}
+
+// ===== TELA DE ENTRADA (GATE) =====
+const SENHA_ADMIN_LOCAL = "162210";
+
+function montarGate(data){
+  const lista = document.getElementById('gateCasaisLista');
+  lista.innerHTML = data.casais.map(c=>
+    '<button type="button" data-casal="'+c.nome+'">'+c.nome+'</button>'
+  ).join('');
+  lista.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=> entrarComoCasal(btn.getAttribute('data-casal')));
+  });
+}
+
+function entrarComoCasal(nome){
+  EH_ADMIN = false;
+  CASAL_SELECIONADO = nome;
+  abrirPainelPrincipal();
+}
+
+function entrarComoAdmin(){
+  const senha = document.getElementById('gateSenhaAdmin').value;
+  const erro = document.getElementById('gateErro');
+  if (senha !== SENHA_ADMIN_LOCAL){ erro.textContent = 'Senha incorreta.'; return; }
+  erro.textContent = '';
+  EH_ADMIN = true;
+  CASAL_SELECIONADO = null;
+  abrirPainelPrincipal();
+}
+
+function abrirPainelPrincipal(){
+  document.getElementById('telaEntrada').style.display = 'none';
+  const wrap = document.getElementById('wrapPrincipal');
+  if (!wrap.dataset.montado){
+    wrap.innerHTML = document.getElementById('templatePrincipal').innerHTML;
+    wrap.dataset.montado = '1';
+    ligarEventosEstaticos();
+  }
+  wrap.style.display = 'block';
+  if (EH_ADMIN) document.getElementById('senhaAdmin').value = SENHA_ADMIN_LOCAL;
+  render(DADOS);
+}
+
+function sairParaGate(){
+  document.getElementById('wrapPrincipal').style.display = 'none';
+  document.getElementById('telaEntrada').style.display = 'flex';
+  document.getElementById('gateSenhaAdmin').value = '';
+}
+
+document.getElementById('btnGateAdmin').addEventListener('click', entrarComoAdmin);
+document.getElementById('gateSenhaAdmin').addEventListener('keydown', (e)=>{ if (e.key==='Enter') entrarComoAdmin(); });
+
+async function recarregarDados(){
+  try{
+    const res = await fetch(SCRIPT_URL);
+    const data = await res.json();
+    if (data.erro) throw new Error(data.erro);
+    DADOS = data;
+    render(data);
+  }catch(err){ console.error(err); }
+}
+
+carregar();
+</script>
+</body>
+</html>
