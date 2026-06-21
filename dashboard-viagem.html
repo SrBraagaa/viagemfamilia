@@ -1,4 +1,4 @@
-const SCRIPT_URL =<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -6,7 +6,7 @@ const SCRIPT_URL =<!DOCTYPE html>
 <title>Rota da Viagem · Planejamento Financeiro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.mconst SCRIPT_URL =in.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#10192C; --bg-soft:#16223C; --tag:#F4EEDD; --tag-line:#E2D9BE;
@@ -278,7 +278,7 @@ const SCRIPT_URL =<!DOCTYPE html>
 
 <script>
 // ======= CONFIGURE AQUI =======
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZLrCMWqnxl9amTzzGUeWiD9LNi2W1vOQhIl7k0RVfp7-j_64BHV_CT8BZqhlKSuJRLg/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwmFz7oF2S1tJCZ3eHMXz6eAbIr-1W4rfYqYduIwW0A/dev";
 // ================================
 
 let DADOS = null;
@@ -298,18 +298,35 @@ function mesmoMes(dataStr, ref){
   return d.getFullYear()===ref.getFullYear() && d.getMonth()===ref.getMonth();
 }
 
+function carregarViaJSONP(aoReceber){
+  const cbName = 'jsonpCb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
+  const script = document.createElement('script');
+
+  window[cbName] = function(data){
+    aoReceber(data, false);
+    delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  };
+
+  script.src = SCRIPT_URL + (SCRIPT_URL.includes('?') ? '&' : '?') + 'callback=' + cbName;
+  script.onerror = function(){
+    aoReceber(null, true);
+    delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  };
+  document.body.appendChild(script);
+}
+
 async function carregar(){
-  try{
-    const res = await fetch(SCRIPT_URL);
-    const data = await res.json();
-    if (data.erro) throw new Error(data.erro);
+  carregarViaJSONP((data, erro)=>{
+    if (erro || !data || data.erro){
+      document.getElementById('gateCasaisLista').innerHTML =
+        '<div style="color:var(--coral);font-size:13px;">Não foi possível carregar os dados. Verifique a URL do Apps Script e se a implantação está como "Qualquer pessoa".</div>';
+      return;
+    }
     DADOS = data;
     montarGate(data);
-  }catch(err){
-    document.getElementById('gateCasaisLista').innerHTML =
-      '<div style="color:var(--coral);font-size:13px;">Não foi possível carregar os dados. Verifique a URL do Apps Script.</div>';
-    console.error(err);
-  }
+  });
 }
 
 // status de cada casal em relação ao vencimento do mês atual
@@ -557,38 +574,77 @@ function calcularDivisaoPreview(){
   box.style.display = 'block';
 }
 
+function enviarSemCors(params, aoConcluir){
+  const iframeName = 'ifrm_' + Date.now();
+  const iframe = document.createElement('iframe');
+  iframe.name = iframeName;
+  iframe.style.display = 'none';
+
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = SCRIPT_URL;
+  form.target = iframeName;
+
+  Object.keys(params).forEach(k=>{
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = k;
+    input.value = params[k];
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(iframe);
+  document.body.appendChild(form);
+
+  let concluido = false;
+  iframe.addEventListener('load', ()=>{
+    if (concluido) return;
+    concluido = true;
+    setTimeout(()=>{
+      form.remove(); iframe.remove();
+      aoConcluir();
+    }, 400);
+  });
+
+  form.submit();
+}
+
 function ligarEventosEstaticos(){
   document.getElementById('btnAdmin').addEventListener('click', ()=>{
     document.getElementById('painelAdmin').classList.toggle('open');
   });
 
-  document.getElementById('btnRegistrar').addEventListener('click', async ()=>{
+  document.getElementById('btnRegistrar').addEventListener('click', ()=>{
     const senha = document.getElementById('senhaAdmin').value;
-    const casal = document.getElementById('selCasal').value;
-    const valor = document.getElementById('inputValor').value;
+    const casalNome = document.getElementById('selCasal').value;
+    const valor = Number(document.getElementById('inputValor').value);
     const fb = document.getElementById('feedbackRegistro');
     if (!senha || !valor){ fb.textContent='Preencha a senha e o valor.'; fb.className='feedback err'; return; }
+    if (senha !== SENHA_ADMIN_LOCAL){ fb.textContent='Senha incorreta.'; fb.className='feedback err'; return; }
 
-    fb.textContent = 'Salvando...'; fb.className='feedback';
-    try{
-      const body = new URLSearchParams({ senha, action:'registro', casal, valor });
-      const res = await fetch(SCRIPT_URL, { method:'POST', body });
-      const json = await res.json();
-      if (json.erro) throw new Error(json.erro);
-      fb.textContent = 'Registrado! '+formatBRL(json.valorMeta)+' foi pra meta e '+formatBRL(json.valorExtra)+' ficou como extra/pessoal.';
+    // calcula a divisão localmente (mesma regra do servidor) só para mostrar no aviso
+    const casal = DADOS.casais.find(c=>c.nome===casalNome);
+    const hoje = new Date();
+    const jaNaMeta = DADOS.registros.filter(r=>r.casal===casalNome && mesmoMes(r.data, hoje)).reduce((s,r)=>s+r.valorMeta,0);
+    const restante = Math.max(casal.metaMensal - jaNaMeta, 0);
+    const valorMetaPrevisto = Math.min(valor, restante);
+    const valorExtraPrevisto = valor - valorMetaPrevisto;
+
+    fb.textContent = 'Enviando...'; fb.className='feedback';
+    enviarSemCors({ senha, action:'registro', casal:casalNome, valor }, ()=>{
+      fb.textContent = 'Registrado! '+formatBRL(valorMetaPrevisto)+' foi pra meta e '+formatBRL(valorExtraPrevisto)+' ficou como extra/pessoal.';
       fb.className='feedback ok';
       document.getElementById('inputValor').value='';
       document.getElementById('previewDivisao').style.display='none';
       recarregarDados();
-    }catch(err){
-      fb.textContent = 'Erro: ' + err.message; fb.className='feedback err';
-    }
+    });
   });
 
-  document.getElementById('btnSalvarConfig').addEventListener('click', async ()=>{
+  document.getElementById('btnSalvarConfig').addEventListener('click', ()=>{
     const senha = document.getElementById('senhaAdmin').value;
     const fb = document.getElementById('feedbackConfig');
     if (!senha){ fb.textContent='Digite a senha.'; fb.className='feedback err'; return; }
+    if (senha !== SENHA_ADMIN_LOCAL){ fb.textContent='Senha incorreta.'; fb.className='feedback err'; return; }
 
     const casais = DADOS.casais.map((c,i)=>{
       const inputMeta = document.querySelector('.cfgCasalMeta[data-idx="'+i+'"]');
@@ -596,24 +652,18 @@ function ligarEventosEstaticos(){
       return { nome:c.nome, metaMensal: Number(inputMeta.value), diaVencimento: Number(inputDia.value) };
     });
 
-    fb.textContent = 'Salvando...'; fb.className='feedback';
-    try{
-      const body = new URLSearchParams({
-        senha, action:'config',
-        destino: document.getElementById('cfgDestino').value,
-        metaTotal: document.getElementById('cfgMetaTotal').value,
-        dataInicio: document.getElementById('cfgDataInicio').value,
-        dataLimite: document.getElementById('cfgDataLimite').value,
-        casais: JSON.stringify(casais)
-      });
-      const res = await fetch(SCRIPT_URL, { method:'POST', body });
-      const json = await res.json();
-      if (json.erro) throw new Error(json.erro);
+    fb.textContent = 'Enviando...'; fb.className='feedback';
+    enviarSemCors({
+      senha, action:'config',
+      destino: document.getElementById('cfgDestino').value,
+      metaTotal: document.getElementById('cfgMetaTotal').value,
+      dataInicio: document.getElementById('cfgDataInicio').value,
+      dataLimite: document.getElementById('cfgDataLimite').value,
+      casais: JSON.stringify(casais)
+    }, ()=>{
       fb.textContent = 'Metas atualizadas!'; fb.className='feedback ok';
       recarregarDados();
-    }catch(err){
-      fb.textContent = 'Erro: ' + err.message; fb.className='feedback err';
-    }
+    });
   });
 
   document.getElementById('btnTrocarUsuario').addEventListener('click', sairParaGate);
@@ -671,13 +721,11 @@ document.getElementById('btnGateAdmin').addEventListener('click', entrarComoAdmi
 document.getElementById('gateSenhaAdmin').addEventListener('keydown', (e)=>{ if (e.key==='Enter') entrarComoAdmin(); });
 
 async function recarregarDados(){
-  try{
-    const res = await fetch(SCRIPT_URL);
-    const data = await res.json();
-    if (data.erro) throw new Error(data.erro);
+  carregarViaJSONP((data, erro)=>{
+    if (erro || !data || data.erro) return;
     DADOS = data;
     render(data);
-  }catch(err){ console.error(err); }
+  });
 }
 
 carregar();
